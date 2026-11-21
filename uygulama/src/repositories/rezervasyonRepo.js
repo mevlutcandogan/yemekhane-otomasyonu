@@ -14,6 +14,9 @@ async function kullaniciRezervasyonlari(kullaniciId) {
   const [satirlar] = await okumaHavuzu.query(
     `SELECT r.id, r.menu_id, r.durum, r.ucret, r.olusturma, r.kullanma_zamani, r.iptal_zamani,
             m.tarih, y.ad AS yemekhane, o.ad AS ogun,
+            TIMESTAMP(m.tarih, o.son_saat) AS rezervasyon_son,
+            (r.durum = 'aktif' AND NOW() < TIMESTAMP(m.tarih, o.son_saat)) AS iptal_edilebilir,
+            (r.durum = 'kullanildi') AS degerlendirilebilir,
             deg.puan AS verdigim_puan, deg.yorum AS verdigim_yorum
      FROM rezervasyonlar r
      JOIN menuler m ON m.id = r.menu_id
@@ -24,12 +27,15 @@ async function kullaniciRezervasyonlari(kullaniciId) {
      ORDER BY m.tarih DESC, r.id DESC`,
     [kullaniciId]
   );
-  return satirlar;
+  return satirlar.map((s) => ({
+    ...s,
+    iptal_edilebilir: Boolean(s.iptal_edilebilir),
+    degerlendirilebilir: Boolean(s.degerlendirilebilir)
+  }));
 }
 
 async function degerlendirmeKaydet(kullaniciId, menuId, puan, yorum) {
-  // Sadece 'kullanildi' durumundaki rezervasyonlar değerlendirilebilir
-  const [kontrol] = await okumaHavuzu.query(
+  const [kontrol] = await yazmaHavuzu.query(
     "SELECT id FROM rezervasyonlar WHERE kullanici_id = ? AND menu_id = ? AND durum = 'kullanildi' LIMIT 1",
     [kullaniciId, menuId]
   );

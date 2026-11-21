@@ -55,14 +55,19 @@ async function menuGuncelle(menuId, { ogrenciFiyati, personelFiyati, yemekIdler 
   try {
     await conn.beginTransaction();
 
-    const [sonuc] = await conn.query(
+    const [mevcut] = await conn.query(
+      'SELECT id, yemekhane_id, tarih, ogun_id FROM menuler WHERE id = ?',
+      [menuId]
+    );
+    if (mevcut.length === 0) {
+      await conn.rollback();
+      return null;
+    }
+
+    await conn.query(
       'UPDATE menuler SET ogrenci_fiyati = ?, personel_fiyati = ? WHERE id = ?',
       [ogrenciFiyati, personelFiyati, menuId]
     );
-    if (sonuc.affectedRows === 0) {
-      await conn.rollback();
-      return false;
-    }
 
     await conn.query('DELETE FROM menu_yemekleri WHERE menu_id = ?', [menuId]);
     if (yemekIdler.length > 0) {
@@ -71,7 +76,7 @@ async function menuGuncelle(menuId, { ogrenciFiyati, personelFiyati, yemekIdler 
     }
 
     await conn.commit();
-    return true;
+    return mevcut[0];
   } catch (err) {
     await conn.rollback();
     throw err;
@@ -89,13 +94,21 @@ async function turnikeGecis(kullaniciId, yemekhaneId, zaman) {
 }
 
 async function raporGetir(tarih) {
+  const where = tarih ? 'WHERE d.tarih = ?' : '';
+  const parametreler = tarih ? [tarih] : [];
+
   const [doluluk] = await okumaHavuzu.query(
-    `SELECT d.*, COALESCE(p.oy_sayisi, 0) AS oy_sayisi, p.ortalama_puan
+    `SELECT d.*, m.ogrenci_fiyati, m.personel_fiyati,
+            COALESCE(p.oy_sayisi, 0) AS oy_sayisi, p.ortalama_puan,
+            (SELECT GROUP_CONCAT(my.yemek_id ORDER BY my.yemek_id)
+               FROM menu_yemekleri my WHERE my.menu_id = d.menu_id) AS yemek_idler
      FROM v_menu_doluluk d
+     JOIN menuler m ON m.id = d.menu_id
      LEFT JOIN v_menu_puan p ON p.menu_id = d.menu_id
-     WHERE d.tarih = ?
-     ORDER BY d.yemekhane_id, d.ogun_id`,
-    [tarih]
+     ${where}
+     ORDER BY d.tarih DESC, d.yemekhane_id, d.ogun_id
+     LIMIT 60`,
+    parametreler
   );
 
   const [yorumlar] = await okumaHavuzu.query(
@@ -110,7 +123,14 @@ async function raporGetir(tarih) {
      LIMIT 20`
   );
 
-  return { tarih, doluluk, yorumlar };
+  return {
+    tarih: tarih || null,
+    doluluk: doluluk.map((s) => ({
+      ...s,
+      yemek_idler: s.yemek_idler ? String(s.yemek_idler).split(',').map(Number) : []
+    })),
+    yorumlar
+  };
 }
 
 module.exports = {

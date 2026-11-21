@@ -1,8 +1,7 @@
 const crypto = require('crypto');
 
-// Aşama 2'de bellek içi tutulur; Aşama 3'te Redis'e taşınacak
 const oturumlar = new Map();
-const SURE_MS = 30 * 60 * 1000; // 30 dakika
+const SURE_MS = 30 * 60 * 1000;
 
 async function olustur(kullanici) {
   const token = crypto.randomBytes(24).toString('hex');

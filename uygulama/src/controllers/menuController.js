@@ -26,7 +26,9 @@ async function gununMenusu(req, res) {
     const menuler = await menuRepo.menuleriGetir({
       yemekhaneId,
       baslangic: tarih,
-      ogunId
+      ogunId,
+      kullaniciId: req.kullanici?.id || null,
+      kullaniciRol: req.kullanici?.rol || null
     });
     res.json({ tarih, menuler });
   } catch (err) {
@@ -42,7 +44,13 @@ async function haftalikMenu(req, res) {
     const bitis = req.query.bitis || bitisTarih.toISOString().slice(0, 10);
     const yemekhaneId = req.query.yemekhane_id ? Number(req.query.yemekhane_id) : null;
 
-    const menuler = await menuRepo.menuleriGetir({ yemekhaneId, baslangic, bitis });
+    const menuler = await menuRepo.menuleriGetir({
+      yemekhaneId,
+      baslangic,
+      bitis,
+      kullaniciId: req.kullanici?.id || null,
+      kullaniciRol: req.kullanici?.rol || null
+    });
     res.json({ baslangic, bitis, menuler });
   } catch (err) {
     hataYakala(err, res);
