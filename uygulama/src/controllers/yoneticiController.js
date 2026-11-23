@@ -1,4 +1,5 @@
 const yoneticiRepo = require('../repositories/yoneticiRepo');
+const { menuOnbellekSil } = require('../config/redis');
 const { hataYakala } = require('../middleware/hata');
 
 function simdiIstanbul() {
@@ -54,6 +55,8 @@ async function menuOlustur(req, res) {
       yemekIdler
     });
 
+    await menuOnbellekSil(Number(yemekhane_id), tarih, Number(ogun_id));
+
     res.status(201).json({ mesaj: 'Menü kaydedildi.', menu_id: menuId });
   } catch (err) {
     hataYakala(err, res);
@@ -84,6 +87,8 @@ async function menuGuncelle(req, res) {
     if (!guncellenen) {
       return res.status(404).json({ hata: 'Menü bulunamadı.' });
     }
+
+    await menuOnbellekSil(guncellenen.yemekhane_id, guncellenen.tarih, guncellenen.ogun_id);
 
     res.json({ mesaj: 'Menü güncellendi.', menu: guncellenen });
   } catch (err) {

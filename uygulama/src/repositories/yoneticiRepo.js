@@ -56,7 +56,7 @@ async function menuGuncelle(menuId, { ogrenciFiyati, personelFiyati, yemekIdler 
     await conn.beginTransaction();
 
     const [mevcut] = await conn.query(
-      'SELECT id, yemekhane_id, tarih, ogun_id FROM menuler WHERE id = ?',
+      "SELECT id, yemekhane_id, DATE_FORMAT(tarih, '%Y-%m-%d') AS tarih, ogun_id FROM menuler WHERE id = ?",
       [menuId]
     );
     if (mevcut.length === 0) {

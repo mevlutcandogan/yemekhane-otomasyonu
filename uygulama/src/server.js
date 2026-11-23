@@ -1,6 +1,7 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const { yazmaHavuzu, okumaHavuzu } = require('./config/veritabani');
+const { redis } = require('./config/redis');
 const authRoutes = require('./routes/authRoutes');
 const menuRoutes = require('./routes/menuRoutes');
 const rezervasyonRoutes = require('./routes/rezervasyonRoutes');
@@ -16,10 +17,11 @@ app.get('/api/', async (req, res) => {
   try {
     const [[yazma]] = await yazmaHavuzu.query('SELECT @@server_id AS id, @@read_only AS salt_okunur');
     const [[okuma]] = await okumaHavuzu.query('SELECT @@server_id AS id, @@read_only AS salt_okunur');
-    res.json({ durum: 'ok', primary: yazma, replica: okuma });
+    const redisYanit = await redis.ping();
+    res.json({ durum: 'ok', primary: yazma, replica: okuma, redis: redisYanit });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ hata: 'Veritabanına bağlanılamadı.' });
+    res.status(500).json({ hata: 'Veritabanı veya Redis bağlantısı kurulamadı.' });
   }
 });
 
