@@ -10,8 +10,15 @@ window.MenuEkranlari = {
         if (y.alerjenler) {
           etiketler.push(`<span class="etiket etiket-alerjen">Alerjen: ${Yardimci.esc(y.alerjenler)}</span>`);
         }
+        if (y.alerjen_uyari && Array.isArray(y.eslesen_alerjenler) && y.eslesen_alerjenler.length) {
+          etiketler.push(
+            `<span class="etiket etiket-uyari">⚠ Alerjen Uyarısı: ${Yardimci.esc(y.eslesen_alerjenler.join(', '))}</span>`
+          );
+        }
+
+        const satirSinifi = y.alerjen_uyari ? 'yemek-satir yemek-satir-uyari' : 'yemek-satir';
         return `
-          <li class="yemek-satir">
+          <li class="${satirSinifi}">
             <div class="yemek-baslik">
               <span>${Yardimci.esc(y.ad)}</span>
               <span class="alt-metin">${Yardimci.esc(y.kalori)} kcal</span>
@@ -22,8 +29,16 @@ window.MenuEkranlari = {
       .join('');
   },
 
+  menuUyariHtml(menu) {
+    if (!menu.alerjen_uyari_var) return '';
+    return '<div class="menu-alerjen-uyari">⚠ Dikkat: Bu menüde profilinizde seçili alerjenleri içeren yemekler bulunuyor.</div>';
+  },
+
   fiyatMetni(menu, kullanici) {
     if (kullanici && menu.kullanici_fiyati !== null && menu.kullanici_fiyati !== undefined) {
+      if (menu.yarim_porsiyon_izin && menu.kullanici_yarim_fiyati !== null && menu.kullanici_yarim_fiyati !== undefined) {
+        return `Tam: ${Yardimci.para(menu.kullanici_fiyati)} · Yarım: ${Yardimci.para(menu.kullanici_yarim_fiyati)}`;
+      }
       return Yardimci.para(menu.kullanici_fiyati);
     }
     return `Öğr: ${Yardimci.para(menu.ogrenci_fiyati)} / Pers: ${Yardimci.para(menu.personel_fiyati)}`;
@@ -97,6 +112,7 @@ window.MenuEkranlari = {
                   </div>
                   ${puanHtml}
                 </div>
+                ${this.menuUyariHtml(m)}
                 <ul class="yemek-listesi">${this.yemekListesiHtml(m.yemekler)}</ul>
                 <div class="kart-alt">
                   <strong>Toplam: ${Yardimci.esc(m.toplam_kalori)} kcal</strong>
@@ -152,10 +168,12 @@ window.MenuEkranlari = {
 
     const islemDugmesiHtml = (m) => {
       if (m.kullanici_rezervasyon_durum === 'aktif') {
-        return '<button type="button" class="dugme" disabled>Rezerve Edildi</button>';
+        const porsiyonMetin = m.kullanici_rezervasyon_porsiyon === 'yarim' ? 'Yarım' : 'Tam';
+        return `<button type="button" class="dugme" disabled>Rezerve Edildi (${porsiyonMetin})</button>`;
       }
       if (m.kullanici_rezervasyon_durum === 'kullanildi') {
-        return '<button type="button" class="dugme" disabled>Kullanıldı</button>';
+        const porsiyonMetin = m.kullanici_rezervasyon_porsiyon === 'yarim' ? 'Yarım' : 'Tam';
+        return `<button type="button" class="dugme" disabled>Kullanıldı (${porsiyonMetin})</button>`;
       }
       if (m.suresi_doldu) {
         return '<button type="button" class="dugme" disabled>Süresi Doldu</button>';
@@ -163,7 +181,25 @@ window.MenuEkranlari = {
       if (!durum.kullanici) {
         return '<button type="button" class="dugme dugme-ikincil" data-giris-git="1">Rezervasyon için giriş yap</button>';
       }
-      return `<button type="button" class="dugme" data-rez-menu="${m.menu_id}">Rezervasyon Yap</button>`;
+
+      if (m.yarim_porsiyon_izin) {
+        const tamFiyat = Yardimci.para(m.kullanici_fiyati);
+        const yarimFiyat = Yardimci.para(m.kullanici_yarim_fiyati);
+        return `
+          <div class="rez-islem-grup">
+            <select class="porsiyon-secim" data-porsiyon-menu="${m.menu_id}" aria-label="Porsiyon seçimi">
+              <option value="tam">Tam Porsiyon (${tamFiyat})</option>
+              <option value="yarim">Yarım Porsiyon (%60 — ${yarimFiyat})</option>
+            </select>
+            <button type="button" class="dugme" data-rez-menu="${m.menu_id}">Rezervasyon Yap</button>
+          </div>`;
+      }
+
+      return `
+        <div class="rez-islem-grup">
+          <span class="etiket etiket-porsiyon">Yalnızca tam porsiyon</span>
+          <button type="button" class="dugme" data-rez-menu="${m.menu_id}">Rezervasyon Yap</button>
+        </div>`;
     };
 
     const yukle = async () => {
@@ -199,6 +235,7 @@ window.MenuEkranlari = {
                   </div>
                   <span class="etiket etiket-fiyat">${this.fiyatMetni(m, durum.kullanici)}</span>
                 </div>
+                ${this.menuUyariHtml(m)}
                 <ul class="yemek-listesi">${this.yemekListesiHtml(m.yemekler)}</ul>
                 <div class="kart-alt">
                   <span class="alt-metin">Boş yer: <strong>${Yardimci.esc(m.bos_yer)}</strong> / ${Yardimci.esc(m.kapasite)}</span>
@@ -227,11 +264,14 @@ window.MenuEkranlari = {
       if (!rezBtn) return;
 
       const menuId = Number(rezBtn.getAttribute('data-rez-menu'));
+      const porsiyonEl = listeEl.querySelector(`[data-porsiyon-menu="${menuId}"]`);
+      const porsiyon = porsiyonEl ? porsiyonEl.value : 'tam';
+
       rezBtn.disabled = true;
       try {
         const yanit = await Api.istek('/rezervasyonlar', {
           method: 'POST',
-          body: { menu_id: menuId }
+          body: { menu_id: menuId, porsiyon }
         });
         durum.bakiyeGuncelle(yanit.bakiye);
         Yardimci.bildirimGoster(yanit.mesaj, 'basari');

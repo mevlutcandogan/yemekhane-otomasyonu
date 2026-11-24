@@ -5,6 +5,13 @@ window.HesapEkranlari = {
     return '<span class="etiket etiket-iptal">İptal</span>';
   },
 
+  porsiyonRozet(porsiyon) {
+    if (porsiyon === 'yarim') {
+      return '<span class="etiket etiket-porsiyon">Yarım Porsiyon (%60)</span>';
+    }
+    return '<span class="etiket etiket-porsiyon">Tam Porsiyon</span>';
+  },
+
   hareketTurEtiket(tur) {
     if (tur === 'yukleme') return 'Bakiye Yükleme';
     if (tur === 'iade') return 'İade';
@@ -48,7 +55,10 @@ window.HesapEkranlari = {
                     <h2>${Yardimci.esc(r.ogun)} · ${Yardimci.esc(r.yemekhane)}</h2>
                     <div class="alt-metin">${Yardimci.tarih(r.tarih)}</div>
                   </div>
-                  ${this.durumRozet(r.durum)}
+                  <div class="etiket-grubu">
+                    ${this.porsiyonRozet(r.porsiyon)}
+                    ${this.durumRozet(r.durum)}
+                  </div>
                 </div>
                 <p class="alt-metin">${ekBilgi}</p>
                 <div class="kart-alt">
@@ -260,5 +270,63 @@ window.HesapEkranlari = {
     });
 
     await yukle();
+  },
+
+  async profil(kapsayici, durum) {
+    const k = durum.kullanici;
+    kapsayici.innerHTML = `
+      <h1>Profil ve Alerjen Tercihlerim</h1>
+      <section class="kart">
+        <h2>Hesap Bilgileri</h2>
+        <p><strong>${Yardimci.esc(k.ad)} ${Yardimci.esc(k.soyad)}</strong> · ${Yardimci.esc(k.eposta)}</p>
+        ${k.ogrenci_no ? `<p class="alt-metin">Öğrenci No: ${Yardimci.esc(k.ogrenci_no)}</p>` : ''}
+      </section>
+      <section class="kart">
+        <h2>Alerjenlerim</h2>
+        <p class="alt-metin" style="margin-bottom: 0.75rem;">
+          Alerjiniz olan maddeleri seçip kaydedin. Günün menüsü ve haftalık menü ekranlarında bu alerjenleri içeren yemekler kırmızı uyarıyla vurgulanır.
+        </p>
+        <div id="alerjen-alan"><p class="alt-metin">Alerjen listesi yükleniyor…</p></div>
+      </section>`;
+
+    const alanEl = document.getElementById('alerjen-alan');
+
+    try {
+      const veri = await Api.istek('/profil/alerjenler');
+      const seciliSet = new Set((veri.secili_alerjen_idler || []).map(Number));
+
+      alanEl.innerHTML = `
+        <form id="alerjen-form">
+          <div class="alerjen-izgara">
+            ${veri.alerjenler
+              .map((a) => `
+                <label class="alerjen-kart">
+                  <input type="checkbox" name="alerjen_id" value="${a.id}" ${seciliSet.has(Number(a.id)) ? 'checked' : ''}>
+                  <span>${Yardimci.esc(a.ad)}</span>
+                </label>`)
+              .join('')}
+          </div>
+          <button type="submit" class="dugme">Alerjen Tercihlerimi Kaydet</button>
+        </form>`;
+
+      document.getElementById('alerjen-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const secililer = Array.from(alanEl.querySelectorAll('input[name="alerjen_id"]:checked'))
+          .map((cb) => Number(cb.value));
+
+        try {
+          const yanit = await Api.istek('/profil/alerjenler', {
+            method: 'PUT',
+            body: { alerjen_idler: secililer }
+          });
+          Yardimci.bildirimGoster(yanit.mesaj, 'basari');
+        } catch (err) {
+          Yardimci.bildirimGoster(err.message, 'hata');
+        }
+      });
+    } catch (err) {
+      Yardimci.bildirimGoster(err.message, 'hata');
+      alanEl.innerHTML = '';
+    }
   }
 };

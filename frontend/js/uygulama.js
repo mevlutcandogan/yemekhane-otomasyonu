@@ -62,7 +62,8 @@
       sekmeler.push(
         { id: 'rezervasyonlar', ad: 'Rezervasyonlarım' },
         { id: 'bakiye', ad: 'Bakiye' },
-        { id: 'degerlendirme', ad: 'Değerlendirme' }
+        { id: 'degerlendirme', ad: 'Değerlendirme' },
+        { id: 'profil', ad: 'Profilim' }
       );
       if (durum.kullanici.rol === 'yonetici') {
         sekmeler.push({ id: 'yonetici', ad: 'Yönetici Paneli' });
@@ -122,10 +123,10 @@
   }
 
   async function ekraniYukle(ekran) {
-    const gecerli = ['giris', 'gunun', 'haftalik', 'rezervasyonlar', 'bakiye', 'degerlendirme', 'yonetici'];
+    const gecerli = ['giris', 'gunun', 'haftalik', 'rezervasyonlar', 'bakiye', 'degerlendirme', 'profil', 'yonetici'];
     let hedef = gecerli.includes(ekran) ? ekran : 'gunun';
 
-    const oturumGerekli = ['rezervasyonlar', 'bakiye', 'degerlendirme', 'yonetici'];
+    const oturumGerekli = ['rezervasyonlar', 'bakiye', 'degerlendirme', 'profil', 'yonetici'];
     if (oturumGerekli.includes(hedef) && !durum.kullanici) {
       hedef = 'giris';
     }
@@ -150,6 +151,8 @@
       await HesapEkranlari.bakiye(icerik, durum);
     } else if (hedef === 'degerlendirme') {
       await HesapEkranlari.degerlendirme(icerik, durum);
+    } else if (hedef === 'profil') {
+      await HesapEkranlari.profil(icerik, durum);
     } else if (hedef === 'yonetici') {
       await YoneticiEkrani.goster(icerik, durum);
     }

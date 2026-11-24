@@ -83,4 +83,34 @@ async function bakiyeYukle(req, res) {
   }
 }
 
-module.exports = { girisYap, cikisYap, ben, bakiyeGetir, bakiyeYukle };
+async function profilAlerjenGetir(req, res) {
+  try {
+    const [alerjenler, seciliIdler] = await Promise.all([
+      kullaniciRepo.tumAlerjenleriGetir(),
+      kullaniciRepo.kullaniciAlerjenleriniGetir(req.kullanici.id)
+    ]);
+    res.json({ alerjenler, secili_alerjen_idler: seciliIdler });
+  } catch (err) {
+    hataYakala(err, res);
+  }
+}
+
+async function profilAlerjenGuncelle(req, res) {
+  try {
+    const liste = Array.isArray(req.body?.alerjen_idler) ? req.body.alerjen_idler : [];
+    const guncel = await kullaniciRepo.kullaniciAlerjenleriniGuncelle(req.kullanici.id, liste);
+    res.json({ mesaj: 'Alerjen tercihleriniz kaydedildi.', secili_alerjen_idler: guncel });
+  } catch (err) {
+    hataYakala(err, res);
+  }
+}
+
+module.exports = {
+  girisYap,
+  cikisYap,
+  ben,
+  bakiyeGetir,
+  bakiyeYukle,
+  profilAlerjenGetir,
+  profilAlerjenGuncelle
+};

@@ -8,5 +8,7 @@ router.post('/cikis', girisGerekli, authController.cikisYap);
 router.get('/ben', girisGerekli, authController.ben);
 router.get('/bakiye', girisGerekli, authController.bakiyeGetir);
 router.post('/bakiye/yukle', girisGerekli, authController.bakiyeYukle);
+router.get('/profil/alerjenler', girisGerekli, authController.profilAlerjenGetir);
+router.put('/profil/alerjenler', girisGerekli, authController.profilAlerjenGuncelle);
 
 module.exports = router;

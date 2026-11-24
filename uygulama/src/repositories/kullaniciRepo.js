@@ -30,9 +30,45 @@ async function bakiyeYukle(kullaniciId, tutar) {
   return sonuc[0][0]; // { hareket_id, bakiye }
 }
 
+async function tumAlerjenleriGetir() {
+  const [satirlar] = await okumaHavuzu.query('SELECT id, ad FROM alerjenler ORDER BY ad');
+  return satirlar;
+}
+
+async function kullaniciAlerjenleriniGetir(kullaniciId) {
+  const [satirlar] = await okumaHavuzu.query(
+    'SELECT alerjen_id FROM kullanici_alerjenleri WHERE kullanici_id = ? ORDER BY alerjen_id',
+    [kullaniciId]
+  );
+  return satirlar.map((s) => Number(s.alerjen_id));
+}
+
+async function kullaniciAlerjenleriniGuncelle(kullaniciId, alerjenIdler) {
+  const benzersizIdler = [...new Set(alerjenIdler.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+  const conn = await yazmaHavuzu.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('DELETE FROM kullanici_alerjenleri WHERE kullanici_id = ?', [kullaniciId]);
+    if (benzersizIdler.length > 0) {
+      const degerler = benzersizIdler.map((alerjenId) => [kullaniciId, alerjenId]);
+      await conn.query('INSERT INTO kullanici_alerjenleri (kullanici_id, alerjen_id) VALUES ?', [degerler]);
+    }
+    await conn.commit();
+    return benzersizIdler;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
 module.exports = {
   epostaIleBul,
   idIleGetirPrimary,
   bakiyeHareketleriGetir,
-  bakiyeYukle
+  bakiyeYukle,
+  tumAlerjenleriGetir,
+  kullaniciAlerjenleriniGetir,
+  kullaniciAlerjenleriniGuncelle
 };

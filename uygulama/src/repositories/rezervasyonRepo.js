@@ -1,7 +1,7 @@
 const { yazmaHavuzu, okumaHavuzu } = require('../config/veritabani');
 
-async function rezervasyonYap(kullaniciId, menuId) {
-  const [sonuc] = await yazmaHavuzu.query('CALL sp_rezervasyon_yap(?, ?)', [kullaniciId, menuId]);
+async function rezervasyonYap(kullaniciId, menuId, porsiyon = 'tam') {
+  const [sonuc] = await yazmaHavuzu.query('CALL sp_rezervasyon_yap(?, ?, ?)', [kullaniciId, menuId, porsiyon]);
   return sonuc[0][0];
 }
 
@@ -12,7 +12,7 @@ async function rezervasyonIptal(kullaniciId, rezervasyonId) {
 
 async function kullaniciRezervasyonlari(kullaniciId) {
   const [satirlar] = await okumaHavuzu.query(
-    `SELECT r.id, r.menu_id, r.durum, r.ucret, r.olusturma, r.kullanma_zamani, r.iptal_zamani,
+    `SELECT r.id, r.menu_id, r.durum, r.porsiyon, r.ucret, r.olusturma, r.kullanma_zamani, r.iptal_zamani,
             m.tarih, y.ad AS yemekhane, o.ad AS ogun,
             TIMESTAMP(m.tarih, o.son_saat) AS rezervasyon_son,
             (r.durum = 'aktif' AND NOW() < TIMESTAMP(m.tarih, o.son_saat)) AS iptal_edilebilir,

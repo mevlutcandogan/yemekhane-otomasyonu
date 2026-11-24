@@ -7,8 +7,13 @@ async function yemekhaneleriGetir() {
 }
 
 async function ogunleriGetir() {
-  const [satirlar] = await okumaHavuzu.query('SELECT id, ad, sira, son_saat, servis_baslangic, servis_bitis FROM ogunler ORDER BY sira');
-  return satirlar;
+  const [satirlar] = await okumaHavuzu.query(
+    'SELECT id, ad, sira, son_saat, servis_baslangic, servis_bitis, yarim_porsiyon_izin FROM ogunler ORDER BY sira'
+  );
+  return satirlar.map((o) => ({
+    ...o,
+    yarim_porsiyon_izin: Boolean(o.yarim_porsiyon_izin)
+  }));
 }
 
 function tarihAraligiUret(baslangic, bitis) {
@@ -52,7 +57,7 @@ async function veritabanindanMenuDetaylari({ yemekhaneId, baslangic, bitis, ogun
     `SELECT d.menu_id,
             DATE_FORMAT(d.tarih, '%Y-%m-%d') AS tarih,
             d.yemekhane_id, d.yemekhane,
-            d.ogun_id, d.ogun, d.ogun_sira,
+            d.ogun_id, d.ogun, d.ogun_sira, d.yarim_porsiyon_izin,
             d.rezervasyon_son, d.ogrenci_fiyati, d.personel_fiyati,
             d.yemek_id, d.yemek, d.kategori_id, d.kategori, d.kategori_sira,
             d.kalori, d.vejetaryen, d.alerjenler, d.alerjen_idler
@@ -73,6 +78,7 @@ async function veritabanindanMenuDetaylari({ yemekhaneId, baslangic, bitis, ogun
         ogun_id: s.ogun_id,
         ogun: s.ogun,
         ogun_sira: s.ogun_sira,
+        yarim_porsiyon_izin: Boolean(s.yarim_porsiyon_izin),
         rezervasyon_son: s.rezervasyon_son,
         ogrenci_fiyati: s.ogrenci_fiyati,
         personel_fiyati: s.personel_fiyati,
@@ -160,8 +166,8 @@ async function menuleriGetir({ yemekhaneId, baslangic, bitis, ogunId, kullaniciI
     ? 'LEFT JOIN rezervasyonlar r ON r.menu_id = dol.menu_id AND r.kullanici_id = ?'
     : '';
   const rezSecim = kullaniciId
-    ? ', r.id AS kullanici_rezervasyon_id, r.durum AS kullanici_rezervasyon_durum'
-    : ', NULL AS kullanici_rezervasyon_id, NULL AS kullanici_rezervasyon_durum';
+    ? ', r.id AS kullanici_rezervasyon_id, r.durum AS kullanici_rezervasyon_durum, r.porsiyon AS kullanici_rezervasyon_porsiyon'
+    : ', NULL AS kullanici_rezervasyon_id, NULL AS kullanici_rezervasyon_durum, NULL AS kullanici_rezervasyon_porsiyon';
   const sorguParam = kullaniciId ? [kullaniciId, menuIdler] : [menuIdler];
 
   const [canliSatirlar] = await okumaHavuzu.query(
@@ -178,18 +184,50 @@ async function menuleriGetir({ yemekhaneId, baslangic, bitis, ogunId, kullaniciI
     sorguParam
   );
 
+  // Kullanıcının profilde seçtiği alerjenleri replikadan oku
+  const kullaniciAlerjenMap = new Map();
+  if (kullaniciId) {
+    const [alerjenSatirlari] = await okumaHavuzu.query(
+      `SELECT a.id, a.ad
+         FROM kullanici_alerjenleri ka
+         JOIN alerjenler a ON a.id = ka.alerjen_id
+        WHERE ka.kullanici_id = ?`,
+      [kullaniciId]
+    );
+    for (const a of alerjenSatirlari) {
+      kullaniciAlerjenMap.set(Number(a.id), a.ad);
+    }
+  }
+
   const canliHarita = new Map(canliSatirlar.map((s) => [s.menu_id, s]));
 
   return temelMenuler.map((m) => {
     const canli = canliHarita.get(m.menu_id) || {};
+    const yarimIzin = Boolean(m.yarim_porsiyon_izin);
     const kullaniciFiyati = kullaniciRol
       ? (kullaniciRol === 'ogrenci' ? m.ogrenci_fiyati : m.personel_fiyati)
       : null;
+    const kullaniciYarimFiyati = yarimIzin && kullaniciFiyati !== null
+      ? Number((Number(kullaniciFiyati) * 0.6).toFixed(2))
+      : null;
+
+    const islenmisYemekler = (m.yemekler || []).map((y) => {
+      const eslesenler = (y.alerjen_idler || [])
+        .filter((id) => kullaniciAlerjenMap.has(Number(id)))
+        .map((id) => kullaniciAlerjenMap.get(Number(id)));
+      return {
+        ...y,
+        alerjen_uyari: eslesenler.length > 0,
+        eslesen_alerjenler: eslesenler
+      };
+    });
 
     return {
       ...m,
+      yarim_porsiyon_izin: yarimIzin,
       suresi_doldu: Boolean(canli.suresi_doldu),
       kullanici_fiyati: kullaniciFiyati,
+      kullanici_yarim_fiyati: kullaniciYarimFiyati,
       kapasite: canli.kapasite ?? 0,
       rezerve: canli.rezerve ?? 0,
       bos_yer: canli.bos_yer ?? 0,
@@ -197,7 +235,10 @@ async function menuleriGetir({ yemekhaneId, baslangic, bitis, ogunId, kullaniciI
       oy_sayisi: canli.oy_sayisi ?? 0,
       ortalama_puan: canli.ortalama_puan ?? null,
       kullanici_rezervasyon_id: canli.kullanici_rezervasyon_id ?? null,
-      kullanici_rezervasyon_durum: canli.kullanici_rezervasyon_durum ?? null
+      kullanici_rezervasyon_durum: canli.kullanici_rezervasyon_durum ?? null,
+      kullanici_rezervasyon_porsiyon: canli.kullanici_rezervasyon_porsiyon ?? null,
+      alerjen_uyari_var: islenmisYemekler.some((y) => y.alerjen_uyari),
+      yemekler: islenmisYemekler
     };
   });
 }

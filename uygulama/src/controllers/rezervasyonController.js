@@ -14,15 +14,18 @@ async function listele(req, res) {
 async function olustur(req, res) {
   try {
     const menuId = Number(req.body?.menu_id);
+    const porsiyon = req.body?.porsiyon || 'tam';
     if (!menuId) {
       return res.status(400).json({ hata: 'Geçerli bir menü seçiniz.' });
     }
-    const sonuc = await rezervasyonRepo.rezervasyonYap(req.kullanici.id, menuId);
+    const sonuc = await rezervasyonRepo.rezervasyonYap(req.kullanici.id, menuId, porsiyon);
     // Rezervasyon sonrası güncel bakiyeyi doğrudan kaynaktan (primary) oku
     const guncelKullanici = await kullaniciRepo.idIleGetirPrimary(req.kullanici.id);
 
     res.status(201).json({
-      mesaj: 'Rezervasyon oluşturuldu.',
+      mesaj: sonuc.porsiyon === 'yarim'
+        ? 'Yarım porsiyon rezervasyon oluşturuldu.'
+        : 'Rezervasyon oluşturuldu.',
       rezervasyon: sonuc,
       bakiye: guncelKullanici.bakiye
     });
